@@ -1,0 +1,212 @@
+import json
+import xlrd
+import re
+
+import csv
+import glob
+import errno
+
+import pyodbc 
+driver = 'SQL Server'
+server = 'localhost'
+db1 = 'RHUB'
+tcon = 'yes'
+uname = 'sjayadevan'
+pword = '--------'
+
+
+conn = pyodbc.connect(driver='{SQL Server Native Client 11.0}', host=server, database=db1,
+                      trusted_connection=tcon, user=uname, password=pword)
+
+cursor = conn.cursor()
+SQL = "INSERT INTO RHUB.dbo.blob (clientID, lei, sourceCompId, messageId, transactionId, parentOrderId, quantity, nominalquantity, price,AssetClass, tradeEvent, buySellIndicator, settlementDate, maturityDate, executionDate, executionTime, orig_executionTime,publisherApiDateTime, mic, tradeCapacity, docname) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+             
+
+tradeCapacity_Dict = {'CrossAsAgent' : 'AOTC', 'Agent': 'AOTC', 'CrossAsPrincipal' : 'MTCH', 'Principal' : 'DEAL', 'RisklessPrincipal' : 'DEAL', None:None }
+             
+             
+path = 'C:/Users/sjayadevan/Desktop/RHUB files/BLOB/rhub_clientId*' #note C:
+#path = 'rhub_clientId_*.xlsx' #note C:
+files = glob.glob(path)
+newline = []
+
+#Output_File = open("RHUB_BLOB_07.csv", "w",newline='')
+#Output_File.write("Client ID,Lei"+"\n")
+#c = csv.writer(Output_File)
+
+
+def find_by_key(data, target):
+    for key, value in data.items():
+        if isinstance(value, dict):
+            yield from find_by_key(value, target)
+        elif key == target:
+            yield value
+
+def main():
+    counter = 1
+    for name in files:
+        try:
+            
+            docname = name.split("\\")[1]
+            print (len(docname),docname+"," + str(counter))
+            counter = counter +1
+            wb = xlrd.open_workbook(name) 
+            sheet = wb.sheet_by_index(0)
+                
+            for c,i in enumerate(range(1,sheet.nrows)): #sheet.nrows-1
+
+                teststr = (sheet.cell_value(i, 4))
+                json_obj = json.loads(teststr)
+                #print(json.dumps(json_obj, indent=4, sort_keys=True)) #-----Pretty Print-----
+                
+                for request in json_obj['requests']:
+                    #print(request)
+                    #print(request['detail'].keys())
+                    #print (request['metadata']['submitter']['lei']) D  
+                    if 'execution' in request['detail'].keys():
+                        
+                       
+                    
+                        
+                        if request['metadata']['submitter']['feedProducer'] == 'FIXEngine':
+                            
+                            if 'unit' in (request['detail']['execution']['coreData']['quantity']).keys():
+                                quantity = request['detail']['execution']['coreData']['quantity']['unit']['quantityOfUnits']
+                            else:
+                                quantity = None
+                            
+                            if 'nominal' in (request['detail']['execution']['coreData']['quantity']).keys():
+                                nominalQuantity = request['detail']['execution']['coreData']['quantity']['nominal']['nominalQuantity']
+                            else:
+                                nominalQuantity = None
+                            
+                            if 'price' in (request['detail']['execution']['coreData']['price']).keys():
+                                price = request['detail']['execution']['coreData']['price']['price']['primary']['price']
+                            else:
+                                price = None
+                            
+                            if 'maturityDate' in (request['detail']['execution']['coreData']['instrument']['instrumentDetails']).keys():
+                                maturityDate = (request['detail']['execution']['coreData']['instrument']['instrumentDetails']['maturityDate'])[:10]
+                            else:
+                                maturityDate = None
+                            
+                            if (request['detail']['execution']['coreData']['settlementDate'])[:10] =='0001-01-01':
+                                settlementDate = '9999-12-31'
+                            else:
+                                settlementDate = (request['detail']['execution']['coreData']['settlementDate'])[:10]
+                                
+                            executionTime = (request['detail']['execution']['coreData']['executionTimestamp']).split("T")[1]
+                            orig_executionTime = request['detail']['execution']['coreData']['executionTimestamp']
+                           
+                            
+                            
+                            if 'lastMarket' in (request['detail']['execution']['coreData']).keys():
+                                mic = request['detail']['execution']['coreData']['lastMarket']['mic']
+                            
+                            elif 'venue' in (request['detail']['execution']['coreData']).keys():
+                                if 'mic' in (request['detail']['execution']['coreData']['venue']['venueId']['direct']).keys():
+                                    mic = request['detail']['execution']['coreData']['venue']['venueId']['direct']['mic']
+                                else:
+                                    mic = None
+                            else:
+                                mic = None
+                                
+                                
+                                
+                            # if 'lastCapacity' in (request['detail']['execution']['coreData']).keys():
+                                # tradeCapacity_temp = request['detail']['execution']['coreData']['lastCapacity']
+                            # else:
+                                # tradeCapacity_temp = None    
+                            
+                            # tradeCapacity = tradeCapacity_Dict[tradeCapacity_temp]
+                            
+                            if 'tradingCapacity' in (request['detail']['execution']['coreData']).keys():
+                                tradeCapacity = request['detail']['execution']['coreData']['tradingCapacity']
+                            else:
+                                tradeCapacity = None
+                                    
+                            
+                            
+                            #print(executionTime[1])
+                            
+                            #print((request['detail']['execution']['coreData']['executionTimestamp'])[:10])
+                            #print(request['metadata']['messageId'], docname)
+                            #print(request['detail']['execution']['coreData']['executionTimestamp'])
+                            #print(json.dumps(json_obj, indent=4, sort_keys=True))  
+                            
+                            # print(sheet.cell_value(i, 1),
+                            # #request['metadata']['rhubMetaData']['clientId'],
+                            # request['metadata']['submitter']['lei'],
+                            # request['metadata']['submitter']['fixId']['sourceCompId'],
+                            
+                            # request['detail']['execution']['coreData']['transactionId'],
+                            # request['detail']['execution']['coreData']['parentOrderId'],
+                            # quantity,
+                            # nominalQuantity,
+                            # price,
+                            # request['detail']['execution']['coreData']['buySellIndicator'],
+                            # settlementDate,
+                            # maturityDate,
+                            # (request['detail']['execution']['coreData']['executionTimestamp'])[:10],
+                            # docname
+                            # )
+                            
+
+
+                            
+                            cursor.execute(
+                            SQL,sheet.cell_value(i, 1),
+                            #request['metadata']['rhubMetaData']['clientId'],
+                            request['metadata']['submitter']['lei'],
+                            request['metadata']['submitter']['fixId']['sourceCompId'],
+                            request['metadata']['messageId'],
+                            request['detail']['execution']['coreData']['transactionId'],
+                            request['detail']['execution']['coreData']['parentOrderId'],
+                            quantity,
+                            nominalQuantity,    
+                            price,
+                            request['detail']['execution']['coreData']['instrument']['instrumentDetails']['assetClass'],
+                            request['detail']['execution']['coreData']['tradeEvent']['type'],
+                            
+                            
+                            request['detail']['execution']['coreData']['buySellIndicator'],
+                            settlementDate,
+                            maturityDate,
+                            (request['detail']['execution']['coreData']['executionTimestamp'])[:10],
+                            executionTime,
+                            orig_executionTime,
+                            request['metadata']['rhubMetaData']['publisherApiDateTime'],
+                            mic,
+                            tradeCapacity,
+                            docname
+                            )
+                            #print (request['metadata']['submitter']['fixId']['sourceCompId'],request['metadata']['messageId'],request['detail']['execution']['coreData']['transactionId'],request['detail']['execution']['coreData']['executionTimestamp'])
+                    #temp = [sheet.cell_value(i, 1),request['metadata']['submitter']['lei']]
+                    #newline.append(temp)
+                    
+               
+                  
+                #print("-------------") 
+                #if c >=0:
+                 #   break      
+            #c.writerows(newline)        
+                
+            #newload = json_obj['requests'][0]
+            #print(newload)
+                # for x in find_by_key(newload, "lei"):
+                    # print(x)
+        except IOError as exc: #Not sure what error this is
+            if exc.errno != errno.EISDIR:
+                conn.commit()
+                conn.close() 
+                raise
+    conn.commit()
+    conn.close()    
+    #Output_File.close()                    
+
+if __name__ == '__main__':
+    main()
+#print(json.dumps(json_obj, indent=4, sort_keys=True))    
+#print (json_obj['requests']['metadata'])
+
+

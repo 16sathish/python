@@ -1,0 +1,202 @@
+import csv
+import glob
+import errno
+
+
+import pyodbc 
+driver = 'SQL Server'
+server = 'localhost'
+db1 = 'RHUB'
+tcon = 'yes'
+uname = 'sjayadevan'
+pword = '--------'
+
+
+conn = pyodbc.connect(driver='{SQL Server Native Client 11.0}', host=server, database=db1,
+                      trusted_connection=tcon, user=uname, password=pword)
+cursor = conn.cursor()
+
+SQL = "INSERT INTO RHUB.dbo.FIX (clientID, TradeReportType, reportingID, IDtype, executingLEI, EventID, TradeDate, Quantity , LegLastQty,Price, priceType,AssetClass,BuySellIndicator, currency, PriceQuotecurrency, TransactTime,SettleDate,maturityDate, mic,tradeCapacity,docname,error_msg) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+     
+
+
+path = 'C:/Users/sjayadevan/Desktop/Python/i.RHUB03.io/i*' #note C:
+files = glob.glob(path)
+newline = []
+tup = {}
+
+
+
+
+TradeReportType_dict = {'0': 'NEW', '5': 'CORRECT', '6':'CANCEL', '77':'--ERROR--'}
+
+pricetypeDict ={'1' : 'Percentage', '2' : 'Per unit','3' : 'Fixed amount','4' : 'Discount','5' : 'Premium','6' : 'Spread','9' : 'Yield', '12': 'Price spread'
+,'20' : 'Normal rate representation (FX)','22' : 'Basis points','23' : 'Up front points','24' : 'Interest rate','25' : 'Percentage of notional','100' : 'Discount margin'}
+
+AssetClassDict = {'1' : 'Interest rate', '2' : 'Currency', '3' : 'Credit', '4' : 'Equity', '5' : 'Commodity', '6' : 'Other', '7' : 'Cash', '8' : 'Debt', None:None}
+
+buysellDict = {'1' : 'Buy', '2' : 'Sell', '5' : 'Sell short', '6' : 'Sell short exempt', 'H' : 'Sell undisclosed', '3':'--ERROR--'}
+
+LEI_LIST = ['1117=SUVUFHICNZMP2WKHG940','1117=259400OFDZ9KPZEO8K78','1117=31570010000000029583','1117=529900UC2OD7II24Z667','1117=S5THZMDUJCTQZBTRVI98','1117=49300IQDG1U1RH9SU92','1117=RB0PEZSDGCO3JS6CEU02','1117=K8MS7FD7N5Z2WQ51AZ71','1117=PT3QB789TSUIDF371261']
+
+tradeCapacity_Dict = {'1' : 'AOTC', '2': 'AOTC', '3' : 'MTCH', '4' : 'DEAL', '5' : 'DEAL', None:None }
+
+idtype_dict = {'N' :'LEI', 'D': 'Firm number or broker code', 'z' : 'Code', None:None}
+
+enc = 'iso-8859-15'
+#c.writerows(newline)
+counter = 1
+for name in files:
+    print('<<<FIRST >>>')
+    try:
+    
+        filename = name.split("\\")
+        print(filename[1]+", "+str(counter))
+        
+        if (filename[1].find('RHUB26') != -1) or (filename[1].find('RHUB02') != -1) or (filename[1].find('RHUB25') != -1) or (filename[1].find('RHUB24') != -1) or (filename[1].find('RHUB03') != -1):
+        #if filename[1] =='i.RHUB02.io.20190723':
+            counter = counter +1
+            print("accepted file")
+            #RHUB02
+        else:
+            print('continye')
+            continue
+        
+        
+
+        
+        counter = counter +1
+        with open(name,'r', encoding=enc) as lines:
+            counter = 0
+         #lines = [next(f) for x in f]
+         #lines = [next(f) for x in range(20)]
+
+            for i,line in enumerate(lines):
+                docname = filename[1]
+                clientID =None
+                IDtype =None
+                reportingID = None
+                LegLastQty = None
+                EventID = None
+                executingLEI = None
+                TradeDate = None
+                TransactTime = None
+                Quantity = None
+                Price = None
+                priceType = None
+                AssetClass = None
+                BuySellIndicator = None
+                currency = None
+                PriceQuotecurrency = None
+                SettleDate = None
+                maturityDate = None
+                tradeEvent = None
+                mic = None
+                tradeCapacity = None
+                if "35=AE" in line:
+                    #print(len(line))
+                    for lei in LEI_LIST:
+                        if lei in line:    
+                        
+                            counter_1119 = 0
+                            #print(line)
+                            #print("----------------")
+                            counter = counter+1
+                          #file1.write(x)
+                           #print(x)
+                            columns = line.strip().split("\x01")
+                           #print(columns)
+                           #print("--------------------- next line-------------------------")
+                           
+                            for pairs in columns[:-1]:
+                                #print(pairs)
+                                val = pairs.split("=")
+                                tup[val[0]] = val[1]
+                                if val[0] == '1119':
+                                    if tup.get('1119') == '116' : # and tup.get('1118') == 'N':
+                                        #print(tup.get('1119'), tup.get('1118'),tup.get('1117'))
+                                        reportingID = tup.get('1117')
+                                        IDtype = idtype_dict[tup.get('1118')]
+                                    
+                                    if tup.get('1119') == '73' and tup.get('1118') == 'G':
+                                    #print(tup.get('1119'), tup.get('1118'),tup.get('1117'))
+                                        mic = tup.get('1117')
+                                        #IDtype = tup.get('1118') 
+                                    
+                                        
+                                    
+                                    if tup.get('1119') == '1' and tup.get('1118') == 'N':
+                                        
+                                        executingLEI = tup.get('1117')
+                                                                            
+                                    
+                                    
+                                if val[0] == '1418':
+                                    LegLastQty = tup.get('1418')
+                                    
+                                if val[0] == '29':
+                                    tradeCapacity = tradeCapacity_Dict[tup.get('29')]
+                                
+                                if val[0] == '423':    
+                                    priceType = pricetypeDict[tup.get('423')]
+                                
+                                if val[0] == '30' and mic == None:
+                                    mic = tup.get('30')
+                                
+                            EventID = tup.get('1003') 
+                            TradeDate = tup.get('769')[:8]
+                            TransactTime = tup.get('769')
+                            Quantity = tup.get('32')
+                            Price = tup.get('31')
+
+                                
+                            AssetClass = AssetClassDict[tup.get('1938')]
+                            BuySellIndicator = buysellDict[tup.get('54')]
+                            if len(tup.get('15')) > 5:
+                                currency = '--Error--'
+                                error_msg = 'currency '+ tup.get('15')
+                                
+                                currency = tup.get('15')
+                            PriceQuotecurrency = tup.get('1524')
+                            maturityDate = tup.get('541')
+                            SettleDate = tup.get('64')
+                            #print(tup.get('856'))
+                            TradeReportType = TradeReportType_dict[tup.get('856')]
+                            
+                            
+                            #tradeCapacity = tradeCapacity_Dict[tup.get('29')]
+                                #print(submierID, idtype)                         
+                            #print(tup.get('1119'),tup.get('1117'))
+                            #[tup.get('1003'),tup.get('769'),tup.get('770'),filename[1]]
+                          
+                            
+                            
+                            #print(IDtype,reportingID,LegLastQty,EventID, TradeDate ,TransactTime,Quantity,Price ,priceType ,TradeReportType )
+                            #print(clientID, TradeReportType, reportingID, IDtype, EventID, TradeDate, Quantity , LegLastQty,Price, priceType,AssetClass,BuySellIndicator, currency, PriceQuotecurrency, TransactTime,SettleDate,maturityDate, docname)
+                            
+                            cursor.execute(SQL, clientID, TradeReportType, reportingID, IDtype, executingLEI, EventID, TradeDate, Quantity , LegLastQty,Price, priceType,AssetClass,BuySellIndicator, currency, PriceQuotecurrency, TransactTime,SettleDate,maturityDate,mic,tradeCapacity, docname,line)
+                            
+                            tup.clear()
+                    
+                
+               # if i >= 2:
+                #    break
+           #print(tup.get('1003'),tup.get('769'),tup.get('770'))
+        #newline = "\n".join(newline)
+        #print(newline[1])
+         
+        print("-------------") 
+        print(counter) 
+        
+        
+      
+   
+#file1.close()   
+   
+    except IOError as exc: #Not sure what error this is
+        print(line)
+        if exc.errno != errno.EISDIR:
+            raise
+            
+conn.commit()
+conn.close()  

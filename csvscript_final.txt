@@ -1,0 +1,173 @@
+import csv
+import codecs
+import csv
+import glob
+import errno
+import sys
+import datetime
+
+
+
+import pyodbc 
+driver = 'SQL Server'
+server = 'localhost'
+db1 = 'RHUB'
+tcon = 'yes'
+uname = 'sjayadevan'
+pword = 'S@thukudi!9'
+
+
+conn = pyodbc.connect(driver='{SQL Server Native Client 11.0}', host=server, database=db1,
+                      trusted_connection=tcon, user=uname, password=pword)
+
+cursor = conn.cursor()
+
+
+SQL = "INSERT INTO RHUB.dbo.CSV (clientID, EventID, ParentOrderID, InstrumentType, SecurityType, Quantity, Price,Assetclass, BuySellIndicator,TradeReportType, OverridePrev, ReportingLEI, \
+TradeDate, TransactTime,SettleDate, SettleDate_err, MaturityDate,MaturityDate_err,mic,tradeCapacity,  docname) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+         
+           
+#path = 'C:/Users/sjayadevan/Desktop/RHUB files/CSV/xfer/RHUB4353L602/data/MIZUHO_*' #note C:
+path = 'C:/Users/sjayadevan/Desktop/RHUB files/CSV/*/*/data/*' #note C:
+files = glob.glob(path)
+#print(files)
+newline = []           
+
+clientID = {'RHUB4596L602': 103, 'RHUB4424L602':176, 'RHUB4216L602':226, 'RHUB11510L602':237, 'RHUB4353L602':247, 'RHUB4611L602': 291, 'RHUB4369L602': 375,
+ 'RHUB4438L602': 482, 'RHUB4617L602': 486, 'RHUB4615L602': 558, 'RHUB4249L602': 503, 'RHUB4603L602': 522, 'RHUB4609L602': 467, 'RHUB4700L602': 193 }
+
+BuySellInd = {'1': 'Buy', '2': 'Sell', '5': 'Sell short', '6': 'Sell short exempt'}
+
+TradeReportType_dict = {'0': 'NEW', '5': 'CORRECT', '6':'CANCEL'}
+
+
+AssetClassDict = {'1' : 'Interest rate', '2' : 'Currency', '3' : 'Credit', '4' : 'Equity', '5' : 'Commodity', '6' : 'Other', '7' : 'Cash', '8' : 'Debt', None:None}
+tradeCapacity_Dict = {'1' : 'AOTC', '2': 'AOTC', '3' : 'MTCH', '4' : 'DEAL', '5' : 'DEAL', None:None }
+
+for name in files:
+    #print(name)
+    docname = (name.split("/")[5])
+    foldername = name.split("\\")[2]
+    print(clientID[foldername],docname)
+    try:
+        
+        with open(name) as csv_file:
+            
+            
+            csv_reader = csv.DictReader(x.replace('\0', '') for x in csv_file)
+            line_count = 0
+            #print(name)
+            try:
+              #  ab=""
+                for i,row in enumerate(csv_reader):
+                    
+                    if  not 'EventID' in row:
+                        break
+                    
+                    if row['EventID'] == "":
+                        break
+                    
+                    if ( not 'ParentOrderID' in row or row['ParentOrderID'] =="" or row['ParentOrderID'] ==None):
+                        row['ParentOrderID'] =None
+                        
+                    if ( not 'InstrumentType' in row or row['InstrumentType'] =="" or row['InstrumentType'] ==None):
+                        row['InstrumentType'] =None
+                        
+                    if ( not 'SecurityType' in row or row['SecurityType'] =="" or row['SecurityType'] ==None):
+                        row['SecurityType'] =None    
+                        
+                    if ( not 'InitialQuantity' in row or row['InitialQuantity'] =="" or row['InitialQuantity'] ==None):
+                        #row['InitialQuantity'] =None
+                        InitialQuantity = None
+                    else:
+                        #InitialQuantity = float(row['InitialQuantity'])
+                        InitialQuantity = row['InitialQuantity']
+                    
+                
+                    if not 'TradeReportType' in row:
+                        TradeReportType = row['OverridePrev']
+                        
+                        
+                                        
+                    elif row['TradeReportType'] =="":
+                        TradeReportType = row['OverridePrev']
+                        #TradeReportType = None
+                        #print(row['EventID'])
+                    
+                    else:
+                        TradeReportType = TradeReportType_dict[row['TradeReportType']]
+                    
+                    if  not 'OverridePrev' in row:
+                        row['OverridePrev'] =None
+                    
+                    if row['OverridePrev'] =="":
+                        row['OverridePrev'] =None
+                        
+                    if row['VenueMIC'] =="":
+                        row['VenueMIC'] =None
+
+                    if row['TradingCapacity'] =="":
+                        tradecapacity =None   
+                    else:
+                          tradecapacity = tradeCapacity_Dict[row['TradingCapacity']]                    
+
+
+                    
+                    if (not 'SettlDate' in row or row['SettlDate'] =="" or row['SettlDate'] ==None):
+                        SettleDate =None
+                        SettleDate_err = None
+                    else:    
+                        try:
+                            #print(row['SettlDate'])
+                            #print(row['SettlDate'][:4],row['SettlDate'][4:6],row['SettlDate'][-2:])
+                            SettleDate = datetime.datetime(int(row['SettlDate'][:4]),int(row['SettlDate'][4:6]),int(row['SettlDate'][-2:]))
+                            SettleDate_err = None
+                            #print(SettleDate)
+                        except ValueError:
+                            SettleDate = None
+                            SettleDate_err = 'Error - '+  row['SettlDate']
+                    
+                    if (not 'MaturityDate' in row or row['MaturityDate'] =="" or row['MaturityDate'] ==None):
+                        MaturityDate =None
+                        MaturityDate_err = None
+                    else:    
+                        try:
+                            #print(row['MaturityDate'])
+                            #print(row['MaturityDate'][:4],row['MaturityDate'][4:6],row['MaturityDate'][-2:])
+                            MaturityDate = datetime.datetime(int(row['MaturityDate'][:4]),int(row['MaturityDate'][4:6]),int(row['MaturityDate'][-2:]))
+                            MaturityDate_err = None
+                            #print(MaturityDate)
+                        except ValueError:
+                            MaturityDate = None
+                            MaturityDate_err = 'Error - '+  row['MaturityDate']
+                    
+                    
+                    if (not 'Assetclass' in row or row['Assetclass'] ==""):
+                        Assetclass =None
+                    else:
+                        Assetclass = AssetClassDict[row['Assetclass']]
+                        
+                    
+
+                    
+                    Quantity = row['Quantity']
+                    
+                    Price = row['Price']
+                    #print(BuySellInd[2])        
+                    #BuySellIndicator = BuySellInd[row['BuySellIndicator']]                    
+                    BuySellIndicator = row['BuySellIndicator']
+                    #print(row['EventID'],row['ParentOrderID'],row['InstrumentType'], row['SecurityType'], Quantity, InitialQuantity, Price, BuySellIndicator, row['ReportingLEI'],"Set-",row['SettlDate'],"mat-",row['MaturityDate'],"trade-",row['TradeDate'],"Time-",row['TransactTime'])
+                    cursor.execute(SQL,  clientID[foldername], row['EventID'],row['ParentOrderID'],row['InstrumentType'], row['SecurityType'], Quantity, Price,Assetclass, BuySellIndicator,TradeReportType ,row['OverridePrev'], row['ReportingLEI'],#row['SettlDate'],
+                    row['TradeDate'],row['TransactTime'],SettleDate,SettleDate_err,MaturityDate,MaturityDate_err,row['VenueMIC'],tradecapacity, docname)
+                    
+            except csv.Error:
+                sys.exit('file, line %d:' % (csv_reader.line_num))
+                
+    except IOError as exc: #Not sure what error this is
+        if exc.errno != errno.EISDIR:
+            raise
+        
+conn.commit()
+conn.close()             
+                
+#                
